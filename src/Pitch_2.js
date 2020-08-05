@@ -1,10 +1,9 @@
 import React, {useState, useEffect} from 'react'
-// import { PitchDetector } from 'pitchy';
+import { PitchDetector } from 'pitchy';
 import Property from "./Property"
-// import Script from 'react-load-script'
-// import {appendScript} from './appendScript'
-const Pitchfinder = require("pitchfinder");
-const detectPitch = Pitchfinder.AMDF();
+import Script from 'react-load-script'
+import {appendScript} from './appendScript'
+
 var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = new SpeechRecognition();
 
@@ -16,14 +15,12 @@ recognition.interimResults = true;
 
 let audioContext = new (window.AudioContext || window.webkitAudioContext)();
 let analyserNode = audioContext.createAnalyser();
-var MicrophoneStream = require('microphone-stream');
 
 class Pitch extends React.Component {
     constructor(props){
         super(props);
         this.state = {
             isActive: false,
-            // prev_pitch: 0,
             pitch: 0,
             clarity: 0,
             transcript: '',
@@ -62,20 +59,34 @@ class Pitch extends React.Component {
         }
     }
 
+    test = ()=>{
+        // if (annyang) {
+        //     // Let's define a command.
+        //     const commands = {
+        //         'hello': () => { alert('Hello world!'); }
+        //     };
+            
+        //     // Add our commands to annyang
+        //     annyang.addCommands(commands);
+            
+        //     // Start listening.
+        //     // annyang.start();
+        // }
+    }
     getSpeechRate =()=>{ //returns WPM
         return this.count(this.state.transcript)/this.state.speech_duration * 60
     }
-    // updatePitch = (analyserNode, detector, input, sampleRate) => {
+    updatePitch = (analyserNode, detector, input, sampleRate) => {
 
-    //     analyserNode.getFloatTimeDomainData(input);
-    //     let [p, c] = detector.findPitch(input, sampleRate);
-    //     // console.log("pitch: "+ p);
-    //     // console.log("clarity: "+c);
-    //     this.setState({
-    //         pitch: p,
-    //         clarity: c
-    //     })
-    // }
+        analyserNode.getFloatTimeDomainData(input);
+        let [p, c] = detector.findPitch(input, sampleRate);
+        // console.log("pitch: "+ p);
+        // console.log("clarity: "+c);
+        this.setState({
+            pitch: p,
+            clarity: c
+        })
+    }
     startListening =()=>{
         console.log("listening...")
         recognition.start();
@@ -83,7 +94,6 @@ class Pitch extends React.Component {
             isActive: true
         })
         this.createTimer();
-        this.getPitch();
 
     }
     count = (text)=>{ //taken from https://stackoverflow.com/questions/18679576/counting-words-in-string 
@@ -92,10 +102,6 @@ class Pitch extends React.Component {
     stopListening =()=>{
         // SpeechRecognition.stopListening();
         recognition.stop();
-        if (this.micStream){
-            this.micStream.stop()
-            this.micStream = null;
-        }
         // setIsActive(false);
         this.setState({
             isActive: false
@@ -110,46 +116,21 @@ class Pitch extends React.Component {
         }  
     }
     getPitch = ()=>{ //from the example given in https://www.npmjs.com/package/pitchy
-        console.log("getting pitch...")
-        this.micStream = new MicrophoneStream();
-        let that = this;
-        navigator.mediaDevices.getUserMedia({ video: false, audio: true })
-        .then(function(stream) {
-          that.micStream.setStream(stream);
-        }).catch(function(error) {
-          console.log(error);
-        });
-
-        this.micStream.on('data', function(chunk) {
-            // Optionally convert the Buffer back into a Float32Array
-            // (This actually just creates a new DataView - the underlying audio data is not copied or modified.)
-            var raw = MicrophoneStream.toRaw(chunk)
-            const pitch = detectPitch(raw); // null if pitch cannot be identified
-
-            // console.log("pitch"+pitch);
-            if (pitch){
-                that.setState({
-                    pitch: pitch,
-                })
+        navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+            if (window.streamReference){
+                window.streamReference.getAudioTracks().forEach(function(track) {
+                    // console.log("stopping track..")
+                    track.stop();
+                });
             }
-            // note: if you set options.objectMode=true, the `data` event will output AudioBuffers instead of Buffers
-          });
+            window.streamReference = stream;
 
-        // navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-        //     if (window.streamReference){
-        //         window.streamReference.getAudioTracks().forEach(function(track) {
-        //             // console.log("stopping track..")
-        //             track.stop();
-        //         });
-        //     }
-        //     window.streamReference = stream;
-
-        //     let sourceNode = audioContext.createMediaStreamSource(stream);
-        //     sourceNode.connect(analyserNode);
-        //     const detector = PitchDetector.forFloat32Array(analyserNode.fftSize);
-        //     const input = new Float32Array(detector.inputLength);
-        //     this.updatePitch(analyserNode, detector, input, audioContext.sampleRate);
-        // });
+            let sourceNode = audioContext.createMediaStreamSource(stream);
+            sourceNode.connect(analyserNode);
+            const detector = PitchDetector.forFloat32Array(analyserNode.fftSize);
+            const input = new Float32Array(detector.inputLength);
+            this.updatePitch(analyserNode, detector, input, audioContext.sampleRate);
+        });
     }
     // const [isActive, setIsActive] = useState(null);    //if continue listening
     // const [pitch, setPitch] = useState(0);
@@ -163,7 +144,7 @@ class Pitch extends React.Component {
             this.setState({
                 speech_duration: this.state.speech_duration+1,
             })
-            // this.getPitch();
+            this.getPitch();
         }, 1000);
     }
     toggle =()=>{
@@ -179,9 +160,6 @@ class Pitch extends React.Component {
         // setShowProperties(!showProperties);
     }
     reset= ()=>{
-        if (this.micStream){
-            this.micStream.stop()
-        }
         if (window.streamReference){
             window.streamReference.getAudioTracks().forEach(function(track) {
                 console.log("stopping track..")
@@ -221,12 +199,12 @@ class Pitch extends React.Component {
                     />
                     <Property
                     display_name = "Pitch"
-                    value = {`${this.state.pitch.toFixed(1)} Hz`}
+                    value = {`${this.state.pitch.toFixed(1)} Hz` }
                     />
-                    {/* <Property
+                    <Property
                     display_name = "Clarity"
                     value = {this.state.clarity.toFixed(3)}
-                    /> */}
+                    />
                 </div>
                 }
                 <div>
