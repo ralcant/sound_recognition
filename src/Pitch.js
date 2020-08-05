@@ -6,11 +6,6 @@ import Property from "./Property"
 const Pitchfinder = require("pitchfinder");
 const detectPitch = Pitchfinder.AMDF();
 var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = new SpeechRecognition();
-
-recognition.continuous = true;
-recognition.maxAlternatives = 1;
-recognition.interimResults = true;
 
 
 
@@ -23,62 +18,60 @@ class Pitch extends React.Component {
         super(props);
         this.state = {
             isActive: false,
-            // prev_pitch: 0,
             pitch: 0,
             clarity: 0,
-            transcript: '',
+            final_transcript: "", //the one that is not gonna change
+            interim_transcript: "", //the one that can change
             showText: true,
             speech_duration: 0,
             showProperties: true,
         }
     }
-    componentDidMount(){
-        recognition.onstart = function(){
+
+    getSpeechRate =()=>{ //returns WPM
+        let transcript = this.state.final_transcript +" " +this.state.interim_transcript;
+        return this.count(transcript)/this.state.speech_duration * 60
+    }
+    setupRecognition = ()=>{
+        this.recognition = new SpeechRecognition();
+
+        this.recognition.continuous = true;
+        this.recognition.maxAlternatives = 1;
+        this.recognition.interimResults = true;
+        this.recognition.lang = "en-US";
+
+        this.recognition.onstart = function(){
             console.log("stared hearing...")
         }
-        recognition.onerror = function(event) {
-            console.log("there was an error!")
-            // diagnostic.textContent = 'Error occurred in recognition: ' + event.error;
+        this.recognition.onerror = function(event) {
+            console.log("there was an error: " + event.error)
         }
-        let finalTranscript = ''
+        this.recognition.onend = function(event){
+            console.log("recognition ended!")
+        }
 
-        recognition.onresult =  (event) => {
-            // let transcript = event.results[0][0].transcript;
-            let interimTranscript = ''
-            console.log(event.results)
-            for (let i = 0; i < event.results.length; i++) {
-                for (let j = 0; j < event.results[i].length; j++){
-                    const transcript = event.results[i][j].transcript;
-                    // if (event.results[i].isFinal) finalTranscript += transcript + ' ';
-                    // else 
-                    interimTranscript += transcript;
+        this.recognition.onresult =  (event) => {
+            let final_transcript = this.state.final_transcript;
+            let interim_transcript = ''
+            // console.log(event.results)
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                if (event.results[i].isFinal){
+                    final_transcript += event.results[i][0].transcript;
+                } else{
+                    interim_transcript += event.results[i][0].transcript;
                 }
-
             }
-            // console.log(interimTranscript);
             this.setState({
-                transcript: interimTranscript,
+                final_transcript: final_transcript,
+                interim_transcript: interim_transcript,
             })
         }
     }
-
-    getSpeechRate =()=>{ //returns WPM
-        return this.count(this.state.transcript)/this.state.speech_duration * 60
-    }
-    // updatePitch = (analyserNode, detector, input, sampleRate) => {
-
-    //     analyserNode.getFloatTimeDomainData(input);
-    //     let [p, c] = detector.findPitch(input, sampleRate);
-    //     // console.log("pitch: "+ p);
-    //     // console.log("clarity: "+c);
-    //     this.setState({
-    //         pitch: p,
-    //         clarity: c
-    //     })
-    // }
     startListening =()=>{
+        this.setupRecognition();
+ 
         console.log("listening...")
-        recognition.start();
+        this.recognition.start();
         this.setState({
             isActive: true
         })
@@ -87,11 +80,11 @@ class Pitch extends React.Component {
 
     }
     count = (text)=>{ //taken from https://stackoverflow.com/questions/18679576/counting-words-in-string 
-        return text.length === 0 ? 0: text.trim().split(/\s+/).length;
+        return !text.trim() ? 0: text.trim().split(/\s+/).length;
     }
     stopListening =()=>{
         // SpeechRecognition.stopListening();
-        recognition.stop();
+        this.recognition.stop();
         if (this.micStream){
             this.micStream.stop()
             this.micStream = null;
@@ -126,7 +119,6 @@ class Pitch extends React.Component {
             var raw = MicrophoneStream.toRaw(chunk)
             const pitch = detectPitch(raw); // null if pitch cannot be identified
 
-            // console.log("pitch"+pitch);
             if (pitch){
                 that.setState({
                     pitch: pitch,
@@ -134,74 +126,55 @@ class Pitch extends React.Component {
             }
             // note: if you set options.objectMode=true, the `data` event will output AudioBuffers instead of Buffers
           });
-
-        // navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-        //     if (window.streamReference){
-        //         window.streamReference.getAudioTracks().forEach(function(track) {
-        //             // console.log("stopping track..")
-        //             track.stop();
-        //         });
-        //     }
-        //     window.streamReference = stream;
-
-        //     let sourceNode = audioContext.createMediaStreamSource(stream);
-        //     sourceNode.connect(analyserNode);
-        //     const detector = PitchDetector.forFloat32Array(analyserNode.fftSize);
-        //     const input = new Float32Array(detector.inputLength);
-        //     this.updatePitch(analyserNode, detector, input, audioContext.sampleRate);
-        // });
     }
-    // const [isActive, setIsActive] = useState(null);    //if continue listening
-    // const [pitch, setPitch] = useState(0);
-    // const [clarity, setClarity] = useState(0);
     createTimer = ()=>{
         this.timer = setInterval(()=>{
-            // this.recognition.onresult =  (event) => {
-            //     let transcript = event.results[0][0].transcript;
-            //     console.log(transcript);
-            // }
             this.setState({
                 speech_duration: this.state.speech_duration+1,
             })
-            // this.getPitch();
         }, 1000);
     }
     toggle =()=>{
         this.setState({
             showText: !this.state.showText
         })
-        // setShowText(!showText);
     }
     toggleProperty =()=>{
         this.setState({
             showProperties: !this.state.showProperties,
         })
-        // setShowProperties(!showProperties);
     }
     reset= ()=>{
+        console.log("restarting...")
         if (this.micStream){
-            this.micStream.stop()
+            this.micStream.stop();
+            this.micStream = null;
         }
-        if (window.streamReference){
-            window.streamReference.getAudioTracks().forEach(function(track) {
-                console.log("stopping track..")
-                track.stop();
-            });
-        }
+        // if (window.streamReference){
+        //     window.streamReference.getAudioTracks().forEach(function(track) {
+        //         console.log("stopping track..")
+        //         track.stop();
+        //     });
+        // }
+        this.recognition.stop();
         clearInterval(this.timer);
 
         // resetTranscript();
-        recognition.stop();
         this.setState({
             speech_duration: 0,
             restart: true,
             isActive: false,
             clarity: 0,
             pitch: 0,
-            transcript: ""
+            final_transcript: "",
+            interim_transcript: "",
+        }, ()=>{
+            console.log("reset the values!")
         });
     }
     render(){
+        let transcript = this.state.final_transcript +" " +this.state.interim_transcript;
+        // console.log(this.state);
         return(
             <div className="app">
                 <div className="row">
@@ -209,7 +182,7 @@ class Pitch extends React.Component {
                     <button onClick={this.reset}  className={`button button-primary button-primary-inactive`}>Reset</button>
 
                 </div>
-                <p>Number of words said: <strong>{this.count(this.state.transcript)}</strong></p>
+                <p>Number of words said: <strong>{this.count(transcript)}</strong></p>
                 <p>Duration: {this.state.speech_duration}s</p>
                 <button className="button" onClick={this.toggleProperty}>{this.state.showProperties ? "Hide properties" : "Show properties"}</button>
                 {
@@ -233,7 +206,13 @@ class Pitch extends React.Component {
                     <button className="button" onClick={this.toggle}>{this.state.showText ? "Hide text": "Show text"}</button>
                     {
                     this.state.showText && 
-                    <p>Transcript: {this.state.transcript}</p>
+
+                    <p>Transcript: 
+                        <span>
+                            <strong>{this.state.final_transcript + " "}</strong>
+                        </span>
+                        <span>{this.state.interim_transcript}</span>
+                    </p>
                     }
                 </div>
             </div>
