@@ -20,11 +20,13 @@ class Pitch extends React.Component {
             isActive: false,
             pitch: 0,
             clarity: 0,
+            loudness: 0, 
             final_transcript: "", //the one that is not gonna change
             interim_transcript: "", //the one that can change
             showText: true,
             speech_duration: 0,
             showProperties: true,
+            all_pitches: []
         }
     }
 
@@ -84,6 +86,7 @@ class Pitch extends React.Component {
     }
     stopListening =()=>{
         // SpeechRecognition.stopListening();
+        console.log("Pitches have been = " + this.state.all_pitches);
         this.recognition.stop();
         if (this.micStream){
             this.micStream.stop()
@@ -102,30 +105,67 @@ class Pitch extends React.Component {
             });
         }  
     }
+    recordNewPitch = (pitch)=>{
+        let soFar = this.state.all_pitches
+        soFar.push(pitch);
+        this.setState({
+            all_pitches: soFar,
+        })
+    }
     getPitch = ()=>{ //from the example given in https://www.npmjs.com/package/pitchy
         console.log("getting pitch...")
         this.micStream = new MicrophoneStream();
         let that = this;
         navigator.mediaDevices.getUserMedia({ video: false, audio: true })
         .then(function(stream) {
+            console.log(stream);
           that.micStream.setStream(stream);
         }).catch(function(error) {
           console.log(error);
         });
 
-        this.micStream.on('data', function(chunk) {
+        this.micStream.on('data', function(chunk) { //chunk is Uint8 array
+            // console.log("chunk"+chunk)
             // Optionally convert the Buffer back into a Float32Array
             // (This actually just creates a new DataView - the underlying audio data is not copied or modified.)
             var raw = MicrophoneStream.toRaw(chunk)
+            // console.log("raw"+raw);
+            /**
+             * Getting pitch
+             */
             const pitch = detectPitch(raw); // null if pitch cannot be identified
 
             if (pitch){
+                that.recordNewPitch(pitch);
                 that.setState({
                     pitch: pitch,
                 })
             }
+
+            /**
+             * Getting loudness
+             */
+            that.updateLoudness(raw);
+
             // note: if you set options.objectMode=true, the `data` event will output AudioBuffers instead of Buffers
           });
+        // It also emits a format event with various details (frequency, channels, etc)
+        // this.micStream.on('format', function(format) {
+        //     console.log(format);
+        // });
+    }
+    updateLoudness = (signal)=>{
+        let loud = 0;
+        for (let i = 0; i < signal.length; i++){
+            loud += signal[i]*signal[i];
+        }
+        loud /= signal.length;
+        loud = Math.sqrt(loud);
+
+        this.setState({
+            loudness: loud,
+        })
+
     }
     createTimer = ()=>{
         this.timer = setInterval(()=>{
@@ -195,6 +235,10 @@ class Pitch extends React.Component {
                     <Property
                     display_name = "Pitch"
                     value = {`${this.state.pitch.toFixed(1)} Hz`}
+                    />
+                    <Property
+                    display_name = "Loudness"
+                    value = {`${this.state.loudness.toFixed(1)}`}
                     />
                     {/* <Property
                     display_name = "Clarity"
