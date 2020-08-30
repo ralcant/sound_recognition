@@ -91,7 +91,7 @@ class Pitch extends React.Component {
         clearInterval(this.timer);
         this.setState({
             isActive: false,
-            final_transcript: this.state.final_transcript + this.state.interim_transcript, //saving what was last said (interim) before stopping
+            final_transcript: this.state.final_transcript + " " + this.state.interim_transcript, //saving what was last said (interim) before stopping
             interim_transcript: "",
         })
         // if (window.streamReference) { // test to see if this stops the recording button from appearing
