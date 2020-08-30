@@ -60,19 +60,21 @@ class Pitch extends React.Component {
         }
 
         this.recognition.onresult =  (event) => { //from https://developers.google.com/web/updates/2013/01/Voice-Driven-Web-Apps-Introduction-to-the-Web-Speech-API
-            let final_transcript = this.state.final_transcript;
-            let interim_transcript = ''
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                if (event.results[i].isFinal){ //updating final transcript
-                    final_transcript += event.results[i][0].transcript;
-                } else{
-                    interim_transcript += event.results[i][0].transcript;
+            if (this.state.isActive){ //only update transcript if we are supposed to listen
+                let final_transcript = this.state.final_transcript;
+                let interim_transcript = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal){ //updating final transcript
+                        final_transcript += event.results[i][0].transcript;
+                    } else{
+                        interim_transcript += event.results[i][0].transcript;
+                    }
                 }
+                this.setState({
+                    final_transcript: final_transcript,
+                    interim_transcript: interim_transcript,
+                })
             }
-            this.setState({
-                final_transcript: final_transcript,
-                interim_transcript: interim_transcript,
-            })
         }
     }
     stopListening =()=>{
@@ -88,7 +90,9 @@ class Pitch extends React.Component {
         }
         clearInterval(this.timer);
         this.setState({
-            isActive: false
+            isActive: false,
+            final_transcript: this.state.final_transcript + this.state.interim_transcript, //saving what was last said (interim) before stopping
+            interim_transcript: "",
         })
         // if (window.streamReference) { // test to see if this stops the recording button from appearing
         //     console.log("trying to stop tracks...")
