@@ -1,6 +1,8 @@
-# Wed Demo
+# Sound Recognition
 
-https://sound-recognition.vercel.app/
+Get real-time information about your speech. 
+
+Try it out in https://sound-recognition.vercel.app/
 
 <!-- -----------------------Below is general React fun---------------------------------------
 
